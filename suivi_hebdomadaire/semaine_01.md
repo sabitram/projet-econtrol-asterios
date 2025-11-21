@@ -1,89 +1,118 @@
 # Rapport hebdomadaire – Semaine du 17/11/2025
 
 ## 1. Objectif de la semaine
-L’objectif de cette semaine était de poursuivre la prise en main du projet *Hello Zynq* et de comprendre la chaîne complète permettant d’exécuter une application ASTERIOS sur la carte ZUBOARD 1CG. Je voulais notamment :
+L’objectif de cette semaine était de poursuivre la prise en main du projet *Hello Zynq* et de maîtriser toute la chaîne permettant d’exécuter une application ASTERIOS sur la carte ZUBOARD 1CG. Les buts principaux étaient :
 
 - vérifier la configuration matérielle et logicielle ;
-- exécuter le programme fourni ;
-- commencer à modifier et recompiler l’application pour réaliser des premiers tests simples.
+- comprendre le fonctionnement du script de chargement (`xsdb`) ;
+- installer correctement les outils (psyko, RTK, toolchain ARM, drivers Xilinx) ;
+- recompiler l’exemple fourni et préparer la phase de débogage.
 
 ---
 
 ## 2. Travail effectué
 
-### 2.1 Lecture et compréhension de la documentation
-J’ai étudié la documentation fournie, en particulier les prérequis matériels et logiciels mentionnés dans le README :
+### 2.1 Installation et configuration de l’environnement
+J’ai installé l’ensemble des outils nécessaires :
 
-- alimentation et câblage (USB-C, JTAG/UART) ;
-- configuration du mode JTAG via les DIP switches ;
-- installation des outils sous Windows (ASTERIOS Developer, RTK et toolchain ARM) ;
-- commandes pour charger les binaires (`xsdb.bat`) et observer l’output via UART.
+- ASTERIOS Developer + RTK ;
+- Xilinx Hardware Server 2022.2 (avec drivers JTAG) ;
+- toolchain ARM `aarch64-none-elf-gcc` (version 10.3).
+
+Après plusieurs essais, j’ai constaté que Git Bash ne trouvait pas certains exécutables Windows lorsque les chemins contenaient des espaces ou des répertoires imbriqués.  
+**La solution a été de définir explicitement les chemins avec `export` au début de chaque session Git Bash**, par exemple :
+
+```bash
+export PSYKO="/c/Program Files (x86)/Krono-Safe/psyko-9.5.0/bin/psyko.exe"
+export XSDB="/c/Xilinx/HWSRVR/2022.2/bin/xsdb.bat"
+export RTK_PATH="/c/Program Files (x86)/Krono-Safe/rtk-armv8-zynq-zcu10x-apu-gcc-1.8.0/"
+export PATH=$PATH:/c/Toolchains/gcc-arm-10.3/gcc-arm-10.3-2021.07-mingw-w64-i686-aarch64-none-elf/bin
+```
+
+Cela m’a permis d’obtenir un environnement cohérent entre Windows et Git Bash et de lancer correctement le script de compilation.
+
+---
 
 ### 2.2 Mise en route de la carte
-J’ai réussi à :
+J’ai pu :
 
-- configurer et alimenter correctement la carte ;
-- établir la connexion JTAG/UART ;
-- utiliser `xsdb.bat` pour charger le binaire déjà compilé (`load_binaries.tcl`) ;
-- observer le fonctionnement du programme *Hello World* via le port série (115200 bauds).
+- configurer la carte en mode JTAG (DIP switches) ;
+- l’alimenter et établir la connexion JTAG/UART ;
+- charger les binaires via `xsdb build/load_binaries.tcl` ;
+- ouvrir le port série via PuTTY à **115200 bauds**.
 
-Cela confirme que la chaîne matérielle et le script de chargement fonctionnent correctement.
+Le programme *Hello World* s’affiche correctement, ce qui confirme que la chaîne matérielle et logicielle fonctionne comme prévu.
 
-### 2.3 Tentatives de modification et recompilation
-J’ai ensuite essayé de modifier le code du projet (par exemple dans `HelloWorld.psy`) afin de créer un premier test personnalisé, puis de relancer : `./build.sh`
+---
 
+### 2.3 Recompilation de l’application
+Une fois les problèmes de PATH résolus, j’ai pu exécuter :
 
-pour recompiler l’application.
+```bash
+./build.sh
+```
 
-Cependant, le processus de recompilation a échoué :
+La recompilation fonctionne désormais correctement.  
+Le script génère notamment :
 
-- le script `build.sh` signalait que le RTK (`k2.elf`) n’était pas trouvé ;
-- des problèmes liés aux chemins (PATH) entre Windows et Git Bash empêchaient `psyko` de fonctionner correctement ;
-- malgré plusieurs tentatives (définition de `RTK_PATH`, modifications du script, export de variables d’environnement), la compilation ne s’est pas terminée.
+- `build/app.elf` ;
+- `build/load_binaries.tcl` ;
+- les binaires RTK et bootloader nécessaires.
 
-En conséquence, je n’ai pas pu générer un nouveau `app.elf`.
+J’ai donc maintenant une chaîne complète : **modifier → compiler → charger → exécuter**.
 
 ---
 
 ## 3. Difficultés rencontrées
 
-### 3.1 Chemins Windows vs Git Bash
-Les outils ASTERIOS sont installés dans `C:\Program Files...` alors que `build.sh` utilise des chemins POSIX (`/c/...`).  
-Cela a entraîné des erreurs de détection de `psyko.exe` et du RTK.
+### 3.1 Configuration PATH Windows / Git Bash
+La double structure des dossiers de la toolchain et la présence d’espaces dans les chemins Windows ont posé problème.  
+J’ai résolu cela en utilisant les chemins Unix (`/c/...`) et en définissant explicitement les variables nécessaires avec `export`.
 
-### 3.2 Localisation du RTK
-Le projet `hello-zynq` est conçu pour un package ASTERIOS complet (psyko + RTK).  
-Dans mon installation, ils sont séparés, ce qui nécessite d’indiquer explicitement le chemin RTK via `-K` ou `RTK_PATH`.
+### 3.2 Débogage GDB encore bloqué
+Bien que la compilation fonctionne, je n’ai pas encore réussi à utiliser :
 
-### 3.3 Recompilation bloquée
-Le script ne retrouve pas le RTK et la recompilation échoue avant de produire un nouveau binaire.
+```bash
+aarch64-none-elf-gdb build/app.elf
+```
+
+Le binaire `aarch64-none-elf-gdb.exe` ne semble pas fonctionner correctement ou n’est pas détecté via Git Bash.  
+C’est actuellement la seule étape du pipeline qui reste à débloquer.
 
 ---
 
 ## 4. Prochaines étapes
 
-### 4.1 Finaliser la configuration du build
-- Définir correctement `RTK_PATH` et `PSYKO` dans `build.sh`.
-- Vérifier que Git Bash pointe bien vers les installations ASTERIOS correctes.
-- S’assurer que les modifications dans VS Code sont bien prises en compte par le build.
+### 4.1 Finaliser GDB + hw_server
+- Vérifier la présence et le bon fonctionnement de `aarch64-none-elf-gdb.exe` ;
+- corriger définitivement la structure de la toolchain si nécessaire ;
+- tester la connexion entre GDB et la carte via :
 
-### 4.2 Évaluer l’utilisation d’ASTERIOS Developer
-Je me demande si, pour réaliser les premiers tests simples, il serait utile de créer un petit projet directement dans ASTERIOS Developer pour générer le code automatiquement, puis l’intégrer au pipeline existant.
+```gdb
+tar ext :3001
+```
 
-### 4.3 Une fois la recompilation opérationnelle
-- Modifier progressivement l’application (période, messages, agents supplémentaires…).
-- Tester sur la carte via `xsdb.bat`.
-- Préparer ensuite un cas d’usage plus complexe pour le démonstrateur.
+- placer les premiers breakpoints (`uart_write`, `error_handler`).
+
+### 4.2 Premières modifications de l'application
+Une fois la partie débogage fonctionnelle, je pourrai :
+
+- ajouter une deuxième tâche ;
+- modifier les périodes d’exécution ;
+- tester des échanges simples entre agents ;
+- observer le comportement via UART et GDB.
+
+### 4.3 Préparation du démonstrateur
+Commencer à réfléchir au scénario du POC (traitement périodique, charge temps réel simple, mesures de latence, etc.).
 
 ---
 
 ## 5. Conclusion
 Cette semaine m’a permis de :
 
-- comprendre la chaîne de développement ASTERIOS → ZUBOARD ;
-- valider l’exécution du programme fourni ;
-- identifier précisément les blocages au niveau de la recompilation.
+- installer et comprendre l’environnement ASTERIOS ;
+- exécuter le programme de démonstration sur la ZUBOARD ;
+- réussir la recompilation complète via `build.sh` ;
+- identifier clairement le dernier point bloquant : l’utilisation du débogueur GDB.
 
-La priorité pour la suite est d’obtenir un build fonctionnel afin de pouvoir commencer à développer et tester mes propres scénarios ASTERIOS sur la carte.
-
-
+La priorité pour la semaine prochaine est de finaliser la configuration du débogage afin de pouvoir ensuite développer et tester des scénarios ASTERIOS plus avancés.
